@@ -23,19 +23,27 @@ class NNSegmentation():
         self.valid_history = []
     
     
-    # def loss(self, X, y, batch_size=128):
-    #     """
-    #     Parameters:
-    #     -----------
-    #     - X: numpy.array
-    #     - y: numpy.array
-    #     - batch_size: int
-    #     """
-    #     proba = self.predict_proba(X, batch_size)
-    #     proba = torch.FloatTensor(proba).to(self.device)
-    #     y = torch.LongTensor(y).to(self.device)
-    #     loss = torch.nn.functional.cross_entropy(proba, y).item()
-    #     return loss
+    def loss(self, X, y, batch_size=128):
+        """
+        Parameters:
+        -----------
+        - X: numpy.array
+        - y: numpy.array
+        - batch_size: int
+        """
+        criterion = torch.nn.NLLLoss()
+        self.model.eval()
+        loss = None
+        
+        with torch.no_grad():
+            outputs = self.predict(X, batch_size)
+            outputs = torch.FloatTensor(outputs).to(self.device)
+            softmax = F.log_softmax(outputs, dim=1)
+            y = torch.LongTensor(y).to(self.device)
+
+            loss = criterion(softmax, y).item()
+            
+        return loss
     
     
     def show_history(self, hide_left=0):
@@ -54,20 +62,27 @@ class NNSegmentation():
         plt.show()
         
     
-#     def show_predict_grid(self, X, y, size=5, figsize=(15, 15)):
-#         pred = self.predict(X)
+    def show_predict_grid(self, X, y, size=5, figsize=(15, 15), threshold=0.1):
+        pred = self.predict(X[:size*size])
+        pred = (pred > threshold).astype(float)
         
-#         fig, ax = plt.subplots(size, size, figsize=figsize)
-#         ax = np.ravel(ax)
+        fig, ax = plt.subplots(size, size, figsize=figsize)
+        ax = np.ravel(ax)
         
-#         for i, img in enumerate(X[:size*size]):
-#             color = 'green' if y[i] == pred[i] else 'red'
+        for i, arr in enumerate(X[:size*size, 0].copy()):
+            mask = arr + pred[i, 1] * 100
+            mask = np.clip(mask, 0, 1)
             
-#             ax[i].imshow(np.transpose(X[i], (1, 2, 0)))
-#             ax[i].axis('off')
-#             ax[i].set_title('%d (%d)' % (pred[i], y[i]), color=color)
+            arr[pred[i, 1] > 0] *= 0.35
+            
+            image = np.transpose(np.stack([arr, arr, mask]), (1, 2, 0))
+            # mask = np.transpose(np.stack([pred[i, 1], np.zeros_like(pred[i, 1]), np.zeros_like(pred[i, 1])]), (1, 2, 0))
+            
+            ax[i].imshow(image)
+            ax[i].axis('off')
+            # ax[i].set_title('%d (%d)' % (pred[i], y[i]), color=color)
         
-#         plt.show()
+        plt.show()
         
     def predict(self, X, batch_size=128):
         """
@@ -77,6 +92,7 @@ class NNSegmentation():
         - batch_size: int
         """
         self.model.to(self.device)
+        self.model.eval()
         X = torch.FloatTensor(X).to(self.device)
         N = len(X)
         
@@ -87,8 +103,9 @@ class NNSegmentation():
 
                 masks.append(self.model(X_batch))
             
-        masks = torch.cat(masks).to('cpu').numpy()
-        return masks
+        masks = torch.cat(masks).to('cpu')
+        masks = F.softmax(masks, dim=1)
+        return masks.numpy()
     
     
     # def save(self, path='gesture_classifier.pt'):
@@ -124,6 +141,8 @@ class NNSegmentation():
             cum_loss_train = 0
             part = 0
             for i in range(0, N, batch_size):
+                self.model.train()
+                
                 part += 1
                 X_batch = X[i : min(i + batch_size, N)]
                 y_batch = y[i : min(i + batch_size, N)]
