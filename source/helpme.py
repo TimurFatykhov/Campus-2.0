@@ -37,38 +37,117 @@ def load_gestures(path, size=(32, 32)):
     X = []
     y = []
     
-    to_classes = sorted(glob.glob(os.path.join(path, '*')))
-    for c in to_classes:
-        print(c, 'загружен')
-        to_imgs = glob.glob(os.path.join(c, '*'))
-        for to_img in to_imgs:
-            img = Image.open(to_img)
-            width, height = img.size
-            diff = height - width
+    if not hasattr(path, '__iter__'):
+        path = [path]
+        
+    for p in path:
+        to_classes = sorted(glob.glob(os.path.join(p, '*')))
+        for c in to_classes:
+            print(c, 'загружен')
+            to_imgs = glob.glob(os.path.join(c, '*'))
+            for to_img in to_imgs:
+                img = Image.open(to_img)
+                width, height = img.size
+                diff = height - width
 
-            if diff < 0:
-                # width > height
-                print('w > h')
-                diff = - diff
-                half = diff // 2
-                img = img.crop((half, 0, width - diff + half, height))
+                if diff < 0:
+                    # width > height
+                    print('w > h')
+                    diff = - diff
+                    half = diff // 2
+                    img = img.crop((half, 0, width - diff + half, height))
 
-            elif diff > 0:
-                # height > width
-                half = diff // 2
-                img = img.crop((0, half, width, height - diff + half))
+                elif diff > 0:
+                    # height > width
+                    half = diff // 2
+                    img = img.crop((0, half, width, height - diff + half))
 
-            img = img.resize(size=size, resample=Image.BICUBIC)
-            
-            pix_arr = np.asarray(img)
-            pix_arr = pix_arr - pix_arr.min()
-            pix_arr = pix_arr / pix_arr.max()
+                img = img.resize(size=size, resample=Image.BICUBIC)
 
-            X.append(pix_arr)
-            y.append(int(os.path.basename(c)))
+                pix_arr = np.asarray(img)
+                pix_arr = pix_arr - pix_arr.min()
+                pix_arr = pix_arr / pix_arr.max()
+
+                X.append(pix_arr)
+                y.append(int(os.path.basename(c)))
     
     
     X = np.stack(X)
+    
+    return X, y
+
+
+def __center_crop__(pil_img):
+    width, height = pil_img.size
+    diff = height - width
+
+    if diff < 0:
+        # width > height
+        print('w > h')
+        diff = - diff
+        half = diff // 2
+        pil_img = pil_img.crop((half, 0, width - diff + half, height))
+
+    elif diff > 0:
+        # height > width
+        half = diff // 2
+        pil_img = pil_img.crop((0, half, width, height - diff + half))
+        
+    return pil_img
+    
+    
+
+def load_mri(path, size=(32, 32)):
+    """
+    Загружает изображения с МРТ и соответствующие им
+    сегментационные маски желудочков
+    
+    Принимает один параметр:
+    -------------------------
+    - path: строка
+        путь к папке с папками: images, masks
+    
+    
+    Возвращает две переменные:
+    -------------------------
+    - X: тензор 
+        
+    - y: тензор
+        
+    
+    Пример использования:
+    ---------------------
+    >>> X, Y = load_mri('mri_data')
+    >>>
+    """
+    X = []
+    y = []
+        
+    to_images = sorted(glob.glob(os.path.join(path, 'images', '*')))
+    
+    for to_img in to_images:
+        name = os.path.basename(to_img)
+        
+        img = __center_crop__(Image.open(to_img))
+        mask = __center_crop__(Image.open(os.path.join(path, 'masks', 'mask_' + name)))
+
+        img = img.resize(size=size, resample=Image.BICUBIC)
+        mask = mask.resize(size=size, resample=Image.BICUBIC)
+
+        pix_img = np.asarray(img)
+        pix_img = pix_img - pix_img.min()
+        pix_img = pix_img / pix_img.max()
+                               
+        pix_mask = np.asarray(mask)
+        if pix_mask.max() != 0:
+            pix_mask = pix_mask / pix_mask.max()
+
+        X.append(pix_img)
+        y.append(pix_mask)
+    
+    
+    X = np.expand_dims(np.stack(X), 1)
+    y = np.stack(y)
     
     return X, y
 
