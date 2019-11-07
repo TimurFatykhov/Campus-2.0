@@ -5,6 +5,107 @@ import torchvision
 import os
 import glob
 from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+
+class ProjectDataset(Dataset):
+    def __init__(self, x, y, trs=None, apply_to_targets=False):
+        self.data = x
+        self.targets = y
+        self.trs = trs
+        self.apply_to_targets = apply_to_targets
+        
+    def __len__(self):
+        return len(self.data)
+        
+    def __getitem__(self, idx):
+        x = self.data[idx]
+        y = self.targets[idx]
+        
+        if self.trs is not None:
+            if self.apply_to_targets:
+                augmented = self.trs(image=x, mask=y)
+                x = augmented['image']
+                y = augmented['mask']
+            else:
+                augmented = self.trs(image=x)
+                x = augmented['image']
+                
+        if hasattr(y, '__iter__'):
+            y = y.astype(int)
+            
+        if len(x.shape) < 3:
+            # x is matrix
+            x = np.expand_dims(x, 0).astype(np.float32)
+        else:
+            # x is tensor
+            x = np.transpose(x, (2, 0, 1))
+            
+        return x, y
+
+    
+def create_loader(x, y, trs=None, apply_to_targets=False, batch_size=256, shuffle=False, num_workers=1):
+    dset = ProjectDataset(x, y, trs, apply_to_targets)
+    return DataLoader(dset, batch_size, shuffle, num_workers=num_workers)
+
+
+def show_aug_grid_classification(loader, idx=17, size=5, figsize=(15,15)):
+    """
+    - idx: int
+        индекс картинки 
+    
+    - size: int
+        размер сетки
+    """
+    fig, ax = plt.subplots(size, size, figsize=figsize)
+    ax = np.ravel(ax)
+    
+    X = []
+    Y = []
+    for _ in range(size*size):
+        for x, y in loader:
+            X.append(x[idx])
+            Y.append(y[idx])
+            break
+
+    for i, img in enumerate(X):
+        ax[i].imshow(np.transpose(X[i], (1, 2, 0)))
+        ax[i].axis('off')
+        ax[i].set_title('%d' % (Y[i]))
+
+    plt.show()
+    
+def show_aug_grid_segmentation(loader, idx=17, size=5, figsize=(15,15)):
+    """
+    - idx: int
+        индекс картинки 
+    
+    - size: int
+        размер сетки
+    """
+    fig, ax = plt.subplots(size, size, figsize=figsize)
+    ax = np.ravel(ax)
+    
+    X = []
+    Y = []
+    for _ in range(size*size):
+        for x, y in loader:
+            X.append(x[idx][0])
+            Y.append(y[idx])
+            break
+
+    for i, img in enumerate(X):
+        mask = img + Y[i].float() * 100
+        mask = np.clip(mask, 0, 1)
+
+        img[Y[i] > 0] *= 0.35
+
+        image = np.transpose(np.stack([img, img, mask]), (1, 2, 0))
+        # ax[i].imshow(np.transpose(X[i], (1, 2, 0)))
+        ax[i].imshow(image)
+        ax[i].axis('off')
+
+    plt.show()
+        
 
 def load_gestures(path, size=(32, 32)):
     """
@@ -52,7 +153,6 @@ def load_gestures(path, size=(32, 32)):
 
                 if diff < 0:
                     # width > height
-                    print('w > h')
                     diff = - diff
                     half = diff // 2
                     img = img.crop((half, 0, width - diff + half, height))
@@ -72,7 +172,7 @@ def load_gestures(path, size=(32, 32)):
                 y.append(int(os.path.basename(c)))
     
     
-    X = np.stack(X)
+    X = np.stack(X).astype(np.float32)
     
     return X, y
 
@@ -146,7 +246,7 @@ def load_mri(path, size=(32, 32)):
         y.append(pix_mask)
     
     
-    X = np.expand_dims(np.stack(X), 1)
+    X = np.stack(X)
     y = np.stack(y)
     
     return X, y
