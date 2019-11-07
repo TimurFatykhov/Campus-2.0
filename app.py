@@ -21,6 +21,9 @@ class APP():
     def predict(self, img):
         img = np.transpose(img, (2, 0, 1))
         img = torch.FloatTensor(img)
+        img = img - img.min()
+        img = img / img.max()
+        print(img.max(), img.min())
         img = img.unsqueeze(0)
         with torch.no_grad():
             pred = self.classifier(img).to('cpu')[0]
