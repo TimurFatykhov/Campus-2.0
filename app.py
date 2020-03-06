@@ -30,7 +30,7 @@ class APP():
         if self.classifier is not None:
             with torch.no_grad():
                 pred = self.classifier(img).to('cpu')[0]
-            return torch.argmax(pred)
+            return int(torch.argmax(pred))
         else:
             return 0
             
@@ -58,8 +58,8 @@ class APP():
                 number = self.predict(crop) # RGB
                 i = 1
 
-            cv2.putText(frame, str(number), (40,70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-            cv2.rectangle(frame, (20,20), (340,320), color_green, thickness=2, lineType=8, shift=0)
+            cv2.putText(frame, str(number), (100,100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.rectangle(frame, (140,60), (140+360,60+360), color_green, thickness=2, lineType=8, shift=0)
 
             cv2.imshow('my webcam', frame)
             cv2.imshow('cropped', cv2.resize(crop, (256, 256)))
