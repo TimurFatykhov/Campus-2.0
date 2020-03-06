@@ -9,25 +9,31 @@ class APP():
     def __init__(self):
         global PATH
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.classifier = torch.load(PATH)
-        self.classifier.eval()
-        self.classifier = self.classifier.to(self.device)
-
-        self.y = 60
-        self.x = 60
-        self.h = 450
-        self. w = 450
+        try:
+            self.classifier = torch.load(PATH)
+            self.classifier.eval()
+            self.classifier = self.classifier.to('cpu')
+        except:
+            print('Невозможно загрузить модель!')
+            self.classifier = None
+        
+        self.input_size = 224
+        self.crop_size = 300
 
     def predict(self, img):
         img = np.transpose(img, (2, 0, 1))
         img = torch.FloatTensor(img)
         img = img - img.min()
         img = img / img.max()
-        print(img.max(), img.min())
         img = img.unsqueeze(0)
-        with torch.no_grad():
-            pred = self.classifier(img).to('cpu')[0]
-        print(torch.argmax(pred))
+        
+        if self.classifier is not None:
+            with torch.no_grad():
+                pred = self.classifier(img).to('cpu')[0]
+            return torch.argmax(pred)
+        else:
+            return 0
+            
     
     def run(self):
         color_green = (0, 255, 0)
@@ -41,11 +47,11 @@ class APP():
             _, frame = cam.read()
             i += 1
             height, width, channels = frame.shape
-            frame = cv2.resize(frame, (640, 360))[0: 500, 0: 360]
             frame = cv2.flip(frame, 1)
-
-            crop = frame[20:320, 20:340].copy()
-            crop = cv2.resize(crop, (64, 64))
+            
+            
+            crop = frame[60:420, 140:500].copy()
+            crop = cv2.resize(crop, (224, 224))
             # crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
 
             if i % 5 == 0:

@@ -26,6 +26,7 @@ class NN():
         
         
     def save(self, path='gesture_classifier.pt'):
+        self.model.eval()
         torch.save(self.model.to('cpu'), path)
         print('Model has been saved at "%s"' % (os.path.join(os.getcwd(), path)))
     
@@ -74,7 +75,8 @@ class NN():
         - X: numpy.array
         - batch_size: int
         """
-        self.model.to(self.device)
+        
+        self.model = self.model.to(self.device)
         self.model.eval()
         X = torch.FloatTensor(X).to(self.device)
         N = len(X)
@@ -105,7 +107,7 @@ class NN():
             
         - log_every_epoch: int
         """
-        self.model.to(self.device)
+        self.model = self.model.to(self.device)
         X = torch.FloatTensor(X).to(self.device)
         y = torch.LongTensor(y).to(self.device)
 
@@ -151,11 +153,12 @@ class NN():
     
     
     def fit_loader(self, train_loader, epochs, valid_data=None, valid_batch_size=128, log_every_epoch=None):
-        self.model.to(self.device)
+        self.model = self.model.to(self.device)
         
         bar = tqdm(range(1, epochs+1)) # progress bar
         for epoch in bar:
             cum_loss_train = 0
+            self.model = self.model.to(self.device)
             part = 0
             for x, y in train_loader:
                 self.model.train()
